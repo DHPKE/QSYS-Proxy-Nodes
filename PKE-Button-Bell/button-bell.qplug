@@ -81,7 +81,7 @@ function GetControls(props)
     { Name = "status_text", ControlType = "Text", UserPin = true, PinStyle = "Output" },
     { Name = "min_playtime_ms", ControlType = "Text", UserPin = true, PinStyle = "Input" },
     { Name = "reverb_mix", ControlType = "Knob", ControlUnit = "Percent", Min = 0, Max = 100, UserPin = true, PinStyle = "Input" },
-    { Name = "sound_select", ControlType = "Text", UserPin = true, PinStyle = "Input" },
+    { Name = "sound_select", ControlType = "Text", ControlUnit = "List", UserPin = true, PinStyle = "Input" },
     { Name = "custom_file_name", ControlType = "Text", UserPin = true, PinStyle = "Input" },
     { Name = "stop_now", ControlType = "Button", ButtonType = "Trigger", UserPin = true, PinStyle = "Input" },
   }
@@ -123,7 +123,8 @@ function GetControlLayout(props)
     PrettyName = "Control~Input / Button",
     Style = "Button",
     ButtonStyle = "Toggle",
-    Text = "RING",
+    Legend = "RING",
+    Color = { 0, 255, 0 },
     Position = { 10, yPos },
     Size = { 110, 24 },
   }
@@ -131,7 +132,8 @@ function GetControlLayout(props)
     PrettyName = "Control~Force Stop",
     Style = "Button",
     ButtonStyle = "Trigger",
-    Text = "STOP",
+    Legend = "STOP",
+    Color = { 255, 80, 80 },
     Position = { 130, yPos },
     Size = { 110, 24 },
   }
@@ -139,7 +141,8 @@ function GetControlLayout(props)
 
   layout["sound_select"] = {
     PrettyName = "Sound~Sound Selection",
-    Style = "Textbox",
+    Style = "ComboBox",
+    Choices = DEFAULT_SOUND_CHOICES,
     Position = { 10, yPos },
     Size = { 240, 16 },
   }

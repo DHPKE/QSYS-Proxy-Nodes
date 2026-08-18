@@ -123,7 +123,8 @@ function GetControlLayout(props)
     PrettyName = "Control~Trigger",
     Style = "Button",
     ButtonStyle = "Trigger",
-    Text = "TRIGGER",
+    Legend = "TRIGGER",
+    Color = { 0, 255, 0 },
     Position = { 10, yPos },
     Size = { 110, 24 },
   }
@@ -131,7 +132,8 @@ function GetControlLayout(props)
     PrettyName = "Control~Reset",
     Style = "Button",
     ButtonStyle = "Trigger",
-    Text = "RESET",
+    Legend = "RESET",
+    Color = { 255, 80, 80 },
     Position = { 130, yPos },
     Size = { 110, 24 },
   }
