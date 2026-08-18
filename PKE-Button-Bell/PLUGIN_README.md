@@ -38,8 +38,10 @@ native components, not through the plugin block.
 | **Custom File Name** | *(empty)* | File name (as it appears in the Audio File Player's file list / Core media library) to play when **Sound Selection** = `Custom`. Only shown when Custom is selected. |
 | **Minimum Play Time (ms)** | `1000` | The bell/ring will play for at least this long, even if the button/input is released sooner. `0` disables the minimum (stops immediately on release). |
 | **Reverb Mix Default (%)** | `20` | Initial reverb wet/dry mix percentage applied to the Reverb component on load. |
-| **Trigger Output Type** | `Boolean` | Data type of the `trigger_output` pin: `Boolean` (`true`/`false`), `Integer` (`1`/`0`), or `String` (`on`/`off`). |
-| **Trigger On Time (ms)** | `1000` | How long `trigger_output` stays "on" after each press before automatically reverting to "off" — independent of the bell/ring duration and of whether the button is still held. |
+| **Trigger Output Type** | `Boolean` | Data type of the `trigger_output` pin: `Boolean` (always `true`/`false`), `Integer` (always `1`/`0`), or `String` (respects **Trigger On Value (String)** / **Trigger Off Value (String)**, below). |
+| **Trigger On Time (ms)** | `1000` | **Duration** the trigger output stays "on" after each press before automatically reverting to "off" — independent of the bell/ring duration and of whether the button is still held. |
+| **Trigger On Value (String)** | `on` | Only used when **Trigger Output Type** = `String`. The exact string sent while the trigger output is "on". Hidden/ignored for `Boolean`/`Integer` (those always use `true`/`1`). |
+| **Trigger Off Value (String)** | `off` | Only used when **Trigger Output Type** = `String`. The exact string sent while the trigger output is "off". Hidden/ignored for `Boolean`/`Integer` (those always use `false`/`0`). |
 | **Audio File Player Component Name** | *(empty)* | Type the exact Named Component name of the Audio File Player component in your design (see that component's own Properties > Name field) that this plugin should control. |
 | **Reverb Component Name** | *(empty)* | Type the exact Named Component name of the Reverb component in your design that this plugin should control. |
 | **Debug Print** | `None` | Set to `All` to print trigger/playback activity to the Q-SYS log. |
@@ -74,8 +76,10 @@ for you automatically.
 | `active` | Indicator (LED) | Output | Lit while the bell is playing (including during the "finishing minimum play time" phase). Color indicates the exact sub-state: **gray** = idle, **green** = actively playing (input still true, or minimum time already satisfied), **amber** = input was released early and playback is only continuing to satisfy **Minimum Play Time (ms)**. |
 | `status_text` | Text | Output | Human-readable status: `idle`, `playing: <file>`, or `finishing minimum play time...`. |
 | `trigger_output_type` | Text (List) | Input | Live override of **Trigger Output Type** (`Boolean`, `Integer`, or `String`). |
-| `trigger_on_time_ms` | Text | Input | Live override of **Trigger On Time (ms)** — how long `trigger_output` stays "on" after each press. |
-| `trigger_output` | Text | Output | The typed trigger output value. Reflects the "on" representation (`true` / `1` / `on`) immediately on press, then automatically reverts to the "off" representation (`false` / `0` / `off`) after **Trigger On Time (ms)**, independent of the bell/ring state or how long the button is held. |
+| `trigger_on_time_ms` | Text | Input | Live override of **Trigger On Time (ms)** (duration) — how long `trigger_output` stays "on" after each press. |
+| `trigger_on_value` | Text | Input | Live override of **Trigger On Value (String)**. Only takes effect when Trigger Output Type = `String`. |
+| `trigger_off_value` | Text | Input | Live override of **Trigger Off Value (String)**. Only takes effect when Trigger Output Type = `String`. |
+| `trigger_output` | Text | Output | The typed trigger output value. On press, immediately set to the "on" value for the selected type — always `true` for Boolean, always `1` for Integer, or the configured **Trigger On Value (String)** for String — then automatically reverts to the corresponding "off" value (`false` / `0` / **Trigger Off Value (String)**) after **Trigger On Time (ms)**, independent of the bell/ring state or how long the button is held. |
 
 ## Behavior
 
@@ -99,14 +103,19 @@ for you automatically.
 5. **Reverb Mix** can be adjusted live at any time (including mid-ring) via
    the `reverb_mix` pin/knob.
 6. **Trigger Output** → on every press of `input`, `trigger_output` is
-   immediately set to the "on" representation of the configured
-   **Trigger Output Type** (`true` for Boolean, `1` for Integer, `on` for
-   String), then automatically reverts to the "off" representation
-   (`false` / `0` / `off`) after **Trigger On Time (ms)** elapses. This
-   timing runs completely independently of the bell/ring playback and of
-   how long the `input` button is actually held — it always fires for the
-   configured on-time once triggered (unless `stop_now` forces it off
-   early).
+   immediately set to the "on" value for the configured **Trigger Output
+   Type**:
+   - `Boolean` → always `true` (the On/Off Value fields have no effect)
+   - `Integer` → always `1` (the On/Off Value fields have no effect)
+   - `String` → the configured **Trigger On Value (String)** (default
+     `on`) — the only type that actually uses these fields
+
+   ...then automatically reverts to the corresponding "off" value
+   (`false` / `0` / **Trigger Off Value (String)**) after **Trigger On
+   Time (ms)** elapses. This timing runs completely independently of the
+   bell/ring playback and of how long the `input` button is actually
+   held — it always fires for the configured on-time once triggered
+   (unless `stop_now` forces it off early).
 
 ## Default Sounds
 

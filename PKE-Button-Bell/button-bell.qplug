@@ -74,6 +74,8 @@ function GetProperties()
     { Name = "Reverb Mix Default (%)", Type = "integer", Min = 0, Max = 100, Value = 20 },
     { Name = "Trigger Output Type", Type = "enum", Choices = TRIGGER_OUTPUT_TYPE_CHOICES, Value = "Boolean" },
     { Name = "Trigger On Time (ms)", Type = "integer", Min = 0, Max = 600000, Value = 1000 },
+    { Name = "Trigger On Value (String)", Type = "string", Value = "on" },
+    { Name = "Trigger Off Value (String)", Type = "string", Value = "off" },
     { Name = "Audio File Player Component Name", Type = "string", Value = "" },
     { Name = "Reverb Component Name", Type = "string", Value = "" },
     { Name = "Debug Print", Type = "enum", Choices = DEBUG_CHOICES, Value = "None" },
@@ -82,6 +84,12 @@ end
 
 function RectifyProperties(props)
   props["Custom File Name"].IsHidden = (props["Sound Selection"].Value ~= "Custom")
+  -- The On/Off Value properties only apply to the "String" Trigger Output
+  -- Type - Boolean always sends true/false and Integer always sends 1/0,
+  -- regardless of these fields, so hide them otherwise to avoid confusion.
+  local isStringType = (props["Trigger Output Type"].Value == "String")
+  props["Trigger On Value (String)"].IsHidden = not isStringType
+  props["Trigger Off Value (String)"].IsHidden = not isStringType
   return props
 end
 
@@ -97,6 +105,8 @@ function GetControls(props)
     { Name = "stop_now", ControlType = "Button", ButtonType = "Trigger", UserPin = true, PinStyle = "Input" },
     { Name = "trigger_output_type", ControlType = "Text", ControlUnit = "List", UserPin = true, PinStyle = "Input" },
     { Name = "trigger_on_time_ms", ControlType = "Text", UserPin = true, PinStyle = "Input" },
+    { Name = "trigger_on_value", ControlType = "Text", UserPin = true, PinStyle = "Input" },
+    { Name = "trigger_off_value", ControlType = "Text", UserPin = true, PinStyle = "Input" },
     { Name = "trigger_output", ControlType = "Text", UserPin = true, PinStyle = "Output" },
   }
 end
@@ -114,7 +124,7 @@ function GetControlLayout(props)
     CornerRadius = 8,
     StrokeWidth = 2,
     Position = { 0, yPos },
-    Size = { pageWidth, 300 },
+    Size = { pageWidth, 348 },
   })
   -- Leave enough vertical clearance below the GroupBox header/title bar
   -- (the header text itself is drawn in roughly the top ~22px of the box)
@@ -198,16 +208,47 @@ function GetControlLayout(props)
   }
   yPos = yPos + 24
 
+  -- Duration the trigger output stays "on" after each press before
+  -- automatically reverting to "off" - clearly labeled as a duration in
+  -- milliseconds so it's obvious in both the Properties panel and here.
   layout["trigger_on_time_ms"] = {
-    PrettyName = "Trigger Output~On Time (ms)",
+    PrettyName = "Trigger Output~Duration - On Time (ms)",
     Style = "Textbox",
     Position = { 10, yPos },
     Size = { 100, 16 },
   }
   yPos = yPos + 24
 
+  -- On/Off Value fields only matter for the "String" Trigger Output Type
+  -- (Boolean always sends true/false, Integer always sends 1/0, ignoring
+  -- these two fields entirely) - hide them for Boolean/Integer to avoid
+  -- implying they'd have any effect.
+  local isStringType = (props["Trigger Output Type"].Value == "String")
+
+  layout["trigger_on_value"] = {
+    PrettyName = "Trigger Output~On Value (String only)",
+    Style = "Textbox",
+    Position = { 10, yPos },
+    Size = { 100, 16 },
+    IsHidden = not isStringType,
+  }
+  if isStringType then
+    yPos = yPos + 24
+  end
+
+  layout["trigger_off_value"] = {
+    PrettyName = "Trigger Output~Off Value (String only)",
+    Style = "Textbox",
+    Position = { 10, yPos },
+    Size = { 100, 16 },
+    IsHidden = not isStringType,
+  }
+  if isStringType then
+    yPos = yPos + 24
+  end
+
   layout["trigger_output"] = {
-    PrettyName = "Trigger Output~Output Value",
+    PrettyName = "Trigger Output~Current Output Value",
     Style = "Text",
     Color = { 255, 255, 255 },
     Position = { 10, yPos },
@@ -262,6 +303,8 @@ if Controls then
   Controls.custom_file_name.String = Properties["Custom File Name"].Value
   Controls.trigger_output_type.String = Properties["Trigger Output Type"].Value
   Controls.trigger_on_time_ms.String = tostring(Properties["Trigger On Time (ms)"].Value)
+  Controls.trigger_on_value.String = Properties["Trigger On Value (String)"].Value
+  Controls.trigger_off_value.String = Properties["Trigger Off Value (String)"].Value
 
   local function currentFileName()
     local sel = Controls.sound_select.String
@@ -330,17 +373,26 @@ if Controls then
 
   -- ------------------------------------------------------------------
   -- Typed Trigger Output: independent of the bell audio/minimum play
-  -- time logic. On press, immediately sets the "on" value (Boolean
-  -- true / Integer 1 / String "on" depending on Trigger Output Type),
-  -- then automatically reverts to the "off" value after the configured
-  -- On Time elapses - regardless of whether the button is still held.
+  -- time logic. On press, immediately sets the "on" value, then
+  -- automatically reverts to the "off" value after the configured On
+  -- Time elapses - regardless of whether the button is still held.
+  --
+  -- IMPORTANT override rules (by design):
+  --   Boolean  -> ALWAYS "true"/"false", ignoring the On/Off Value
+  --               fields entirely (a real Boolean has no other valid
+  --               representation).
+  --   Integer  -> ALWAYS "1"/"0", ignoring the On/Off Value fields
+  --               entirely (true=1, false=0 - not user-configurable).
+  --   String   -> the ONLY type that actually respects/uses the
+  --               configurable "Trigger On Value (String)" /
+  --               "Trigger Off Value (String)" properties/pins.
   -- ------------------------------------------------------------------
   local function triggerOutputOnValue()
     local t = Controls.trigger_output_type.String
     if t == "Integer" then
       return "1"
     elseif t == "String" then
-      return "on"
+      return Controls.trigger_on_value.String
     else -- Boolean
       return "true"
     end
@@ -351,7 +403,7 @@ if Controls then
     if t == "Integer" then
       return "0"
     elseif t == "String" then
-      return "off"
+      return Controls.trigger_off_value.String
     else -- Boolean
       return "false"
     end
