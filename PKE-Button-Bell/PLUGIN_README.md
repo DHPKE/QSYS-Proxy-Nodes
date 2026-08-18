@@ -82,9 +82,12 @@ for you automatically.
 1. **Input goes true (press)** → the plugin selects the configured sound
    file on the Audio File Player, forces **Loop = on** (since a bell can
    ring 15+ seconds — far longer than most short bell/chime source clips —
-   the file must repeat seamlessly), and starts playback. The minimum play
-   timer starts counting. At the same time, the **Trigger Output** fires
-   (see item 6 below).
+   the file must repeat seamlessly), **unmutes** the Audio File Player
+   (both its main `mute` control and `output.1.mute`, in case either was
+   left muted from a snapshot or design default) and the Reverb component
+   (`mute`/`bypass`), and starts playback. The minimum play timer starts
+   counting. At the same time, the **Trigger Output** fires (see item 6
+   below).
 2. **Input goes false (release) before the minimum time elapses** → the
    release is remembered, but playback continues (still looping) until
    the minimum play timer fires, at which point it stops automatically.

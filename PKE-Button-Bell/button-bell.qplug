@@ -395,10 +395,23 @@ if Controls then
     DebugPrint("Starting playback: " .. file)
 
     -- Configure the native Audio File Player: select file, force loop on
-    -- (a bell can ring 15s+ so the source clip must repeat), then play.
+    -- (a bell can ring 15s+ so the source clip must repeat), unmute it
+    -- (some designs/snapshots leave the Player or its output muted, which
+    -- would otherwise silently block audio even though Play is true),
+    -- then start playback.
     pcall(function() player["file.name"].String = file end)
     pcall(function() player["loop"].Boolean = true end)
+    pcall(function() player["mute"].Boolean = false end)
+    pcall(function() player["output.1.mute"].Boolean = false end)
     pcall(function() player["play"].Boolean = true end)
+
+    -- Also make sure the Reverb component (if configured) isn't muted,
+    -- for the same reason - a muted Reverb would silence the signal even
+    -- while the Player itself is happily playing.
+    if reverb then
+      pcall(function() reverb["mute"].Boolean = false end)
+      pcall(function() reverb["bypass"].Boolean = false end)
+    end
 
     isPlaying = true
     minTimeElapsed = false
