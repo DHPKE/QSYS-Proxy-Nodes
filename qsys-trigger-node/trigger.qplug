@@ -100,9 +100,11 @@ function GetControlLayout(props)
     CornerRadius = 8,
     StrokeWidth = 2,
     Position = { 0, yPos },
-    Size = { pageWidth, 160 },
+    Size = { pageWidth, 178 },
   })
-  yPos = yPos + 8
+  -- Leave enough vertical clearance below the GroupBox header/title bar
+  -- so the first row of controls doesn't overlap/cut off the title text.
+  yPos = yPos + 26
 
   layout["status_text"] = {
     PrettyName = "Status~Status",
