@@ -63,8 +63,8 @@ function GetProperties()
     { Name = "Custom File Name", Type = "string", Value = "" },
     { Name = "Minimum Play Time (ms)", Type = "integer", Min = 0, Max = 600000, Value = 1000 },
     { Name = "Reverb Mix Default (%)", Type = "integer", Min = 0, Max = 100, Value = 20 },
-    { Name = "Audio File Player Component", Type = "component", ComponentType = "audio_file_player", Value = "" },
-    { Name = "Reverb Component", Type = "component", ComponentType = "reverb", Value = "" },
+    { Name = "Audio File Player Component Name", Type = "string", Value = "" },
+    { Name = "Reverb Component Name", Type = "string", Value = "" },
     { Name = "Debug Print", Type = "enum", Choices = DEBUG_CHOICES, Value = "None" },
   }
 end
@@ -184,10 +184,11 @@ if Controls then
   end
 
   -- Resolve the native components this plugin drives. These must exist in
-  -- the design and be selected via the "Audio File Player Component" /
-  -- "Reverb Component" properties (Named Component pickers).
-  local playerCompName = Properties["Audio File Player Component"].Value
-  local reverbCompName = Properties["Reverb Component"].Value
+  -- the design; type the exact Named Component name (as shown in the
+  -- component's own Properties > Name field) into the "Audio File Player
+  -- Component Name" / "Reverb Component Name" text properties below.
+  local playerCompName = Properties["Audio File Player Component Name"].Value
+  local reverbCompName = Properties["Reverb Component Name"].Value
 
   local player = (playerCompName ~= "" and playerCompName ~= nil) and Component.New(playerCompName) or nil
   local reverb = (reverbCompName ~= "" and reverbCompName ~= nil) and Component.New(reverbCompName) or nil

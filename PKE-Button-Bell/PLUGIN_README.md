@@ -30,8 +30,8 @@ into your amp/zone), and then point this plugin at both by name.
 | **Custom File Name** | *(empty)* | File name (as it appears in the Audio File Player's file list / Core media library) to play when **Sound Selection** = `Custom`. Only shown when Custom is selected. |
 | **Minimum Play Time (ms)** | `1000` | The bell/ring will play for at least this long, even if the button/input is released sooner. `0` disables the minimum (stops immediately on release). |
 | **Reverb Mix Default (%)** | `20` | Initial reverb wet/dry mix percentage applied to the Reverb component on load. |
-| **Audio File Player Component** | *(none)* | Named Component picker — select the Audio File Player component in your design that this plugin should control. |
-| **Reverb Component** | *(none)* | Named Component picker — select the Reverb component in your design that this plugin should control. |
+| **Audio File Player Component Name** | *(empty)* | Type the exact Named Component name of the Audio File Player component in your design (see that component's own Properties > Name field) that this plugin should control. |
+| **Reverb Component Name** | *(empty)* | Type the exact Named Component name of the Reverb component in your design that this plugin should control. |
 | **Debug Print** | `None` | Set to `All` to print trigger/playback activity to the Q-SYS log. |
 
 ## Pins
@@ -97,8 +97,11 @@ bell/ring audio without any code changes.
    Library so the Audio File Player can select them.
 3. **File → Plugins → Load Plugin**, then select `button-bell.qplug`.
 4. Drag the plugin into your design from the Schematic Library.
-5. In the plugin's Properties, select your **Audio File Player Component**
-   and **Reverb Component** via the Named Component pickers.
+5. In the plugin's Properties, type the exact **Named Component** name of
+   your Audio File Player into **Audio File Player Component Name**, and
+   your Reverb component's name into **Reverb Component Name**. You can
+   find/set a component's Named Component name in that component's own
+   Properties panel (the "Name" field at the top).
 6. Wire the `input` pin to your button/logic source.
 
 ## Version
