@@ -289,6 +289,20 @@ if Controls then
   local function updateStatus(text)
     Controls.status_text.String = text
     Controls.active.Boolean = isPlaying
+    -- Give the LED a distinct color per state so it's visually obvious
+    -- whether the plugin is idle, actively playing, or "finishing" the
+    -- minimum play time after an early release:
+    --   Gray   = idle (not playing)
+    --   Green  = playing normally (input still held / min time already met)
+    --   Amber  = still playing ONLY to satisfy Minimum Play Time after
+    --            an early release (input is no longer true)
+    if not isPlaying then
+      Controls.active.Color = { 90, 90, 90 } -- gray = idle
+    elseif releaseRequested then
+      Controls.active.Color = { 255, 165, 0 } -- amber = finishing min time
+    else
+      Controls.active.Color = { 0, 255, 0 } -- green = actively playing
+    end
   end
 
   local function applyReverbMix()
@@ -388,12 +402,14 @@ if Controls then
     updateStatus("playing: " .. file)
 
     local minMs = currentMinPlayMs()
+    DebugPrint("Minimum play time armed: " .. minMs .. " ms")
     minTimer:Stop()
     if minMs <= 0 then
       minTimeElapsed = true
     else
       minTimer.EventHandler = function()
         minTimeElapsed = true
+        DebugPrint("Minimum play time elapsed (releaseRequested=" .. tostring(releaseRequested) .. ")")
         if releaseRequested then
           -- Input was released before the minimum time was up; now that
           -- the minimum has elapsed, actually stop playback.
@@ -411,11 +427,12 @@ if Controls then
       -- Still inside the minimum play window - defer the stop until the
       -- minimum timer fires (handled in startPlayback's EventHandler).
       releaseRequested = true
+      DebugPrint("Release requested before minimum play time elapsed - deferring stop")
       updateStatus("finishing minimum play time...")
       return
     end
 
-    DebugPrint("Stopping playback")
+    DebugPrint("Stopping playback (minimum play time already satisfied)")
 
     if player then
       pcall(function() player["play"].Boolean = false end)

@@ -69,7 +69,7 @@ for you automatically.
 | `custom_file_name` | Text | Input | Live override of the custom file name when using `Custom`. |
 | `min_playtime_ms` | Text | Input | Live override of the minimum play time, in milliseconds. |
 | `reverb_mix` | Knob (0–100%) | Input | Live reverb wet/dry mix control. |
-| `active` | Indicator (LED) | Output | Lit while the bell is playing (including during the "finishing minimum play time" phase). |
+| `active` | Indicator (LED) | Output | Lit while the bell is playing (including during the "finishing minimum play time" phase). Color indicates the exact sub-state: **gray** = idle, **green** = actively playing (input still true, or minimum time already satisfied), **amber** = input was released early and playback is only continuing to satisfy **Minimum Play Time (ms)**. |
 | `status_text` | Text | Output | Human-readable status: `idle`, `playing: <file>`, or `finishing minimum play time...`. |
 | `trigger_output_type` | Text (List) | Input | Live override of **Trigger Output Type** (`Boolean`, `Integer`, or `String`). |
 | `trigger_on_time_ms` | Text | Input | Live override of **Trigger On Time (ms)** — how long `trigger_output` stays "on" after each press. |
