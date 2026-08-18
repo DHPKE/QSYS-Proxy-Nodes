@@ -1,0 +1,21 @@
+{
+  "name": "qsys-trigger-node",
+  "version": "1.0.0",
+  "description": "A Q-SYS flavored Node-RED node that behaves exactly like the core Trigger node.",
+  "main": "qsys-trigger.js",
+  "keywords": [
+    "node-red",
+    "qsys",
+    "q-sys",
+    "trigger"
+  ],
+  "node-red": {
+    "nodes": {
+      "qsys-trigger": "qsys-trigger.js"
+    }
+  },
+  "license": "Apache-2.0",
+  "dependencies": {
+    "mustache": "^4.2.0"
+  }
+}

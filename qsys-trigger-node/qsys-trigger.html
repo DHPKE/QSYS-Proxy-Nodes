@@ -1,0 +1,146 @@
+<script type="text/javascript">
+    RED.nodes.registerType('qsys-trigger', {
+        category: 'Q-SYS',
+        color: '#E9967A',
+        defaults: {
+            name: { value: "" },
+            op1: { value: "1" },
+            op2: { value: "0" },
+            op1type: { value: "str" },
+            op2type: { value: "str" },
+            duration: { value: 250, validate: function (v) { return !isNaN(v); } },
+            units: { value: "ms" },
+            extend: { value: "false" },
+            overrideDelay: { value: false },
+            bytopic: { value: "topic" },
+            reset: { value: "" },
+            outputs: { value: 1 }
+        },
+        inputs: 1,
+        outputs: 1,
+        outputLabels: function (index) {
+            if (this.outputs === 2) {
+                return index === 0 ? "1st message" : "2nd message";
+            }
+            return "";
+        },
+        icon: "trigger.svg",
+        label: function () {
+            return this.name || "qsys-trigger";
+        },
+        oneditprepare: function () {
+            var node = this;
+
+            $("#node-input-op1type").typedInput({
+                default: 'str',
+                typeField: $("#node-input-op1type"),
+                types: ['flow', 'global', 'str', 'num', 'bool', 'json', 'bin', 'date', 'env', 'pay', 'nul']
+            });
+
+            $("#node-input-op2type").typedInput({
+                default: 'str',
+                typeField: $("#node-input-op2type"),
+                types: ['flow', 'global', 'str', 'num', 'bool', 'json', 'bin', 'date', 'env', 'pay', 'payl', 'nul']
+            });
+
+            $("#node-input-duration-units").val(node.units || "ms");
+
+            if (node.outputs === 2) {
+                $("#node-input-second-output").prop("checked", true);
+            }
+        },
+        oneditsave: function () {
+            this.units = $("#node-input-duration-units").val();
+            this.outputs = $("#node-input-second-output").is(":checked") ? 2 : 1;
+        }
+    });
+</script>
+
+<script type="text/html" data-template-name="qsys-trigger">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-op1type"><i class="fa fa-play"></i> Send</label>
+        <input type="text" id="node-input-op1" style="width:70%">
+        <input type="hidden" id="node-input-op1type">
+    </div>
+
+    <div class="form-row">
+        <label>&nbsp;</label>
+        <label for="node-input-second-output" style="width:auto">
+            <input type="checkbox" id="node-input-second-output" style="display:inline-block; width:auto; vertical-align:top;">
+            Send second message to separate output
+        </label>
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-duration"><i class="fa fa-hourglass-half"></i> Then</label>
+        <input type="text" id="node-input-duration" style="width:70px">
+        <select id="node-input-duration-units" style="width:100px">
+            <option value="ms">milliseconds</option>
+            <option value="s">seconds</option>
+            <option value="min">minutes</option>
+            <option value="hr">hours</option>
+        </select>
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-op2type"><i class="fa fa-stop"></i> Send</label>
+        <input type="text" id="node-input-op2" style="width:70%">
+        <input type="hidden" id="node-input-op2type">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-extend">&nbsp;</label>
+        <label for="node-input-extend" style="width:auto">
+            <input type="checkbox" id="node-input-extend" style="display:inline-block; width:auto; vertical-align:top;">
+            Extend delay if new message arrives
+        </label>
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-overrideDelay">&nbsp;</label>
+        <label for="node-input-overrideDelay" style="width:auto">
+            <input type="checkbox" id="node-input-overrideDelay" style="display:inline-block; width:auto; vertical-align:top;">
+            Allow msg.delay to override delay
+        </label>
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-reset"><i class="fa fa-undo"></i> Reset if</label>
+        <input type="text" id="node-input-reset" placeholder="reset value (optional)">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-bytopic"><i class="fa fa-list"></i> Handling</label>
+        <select id="node-input-bytopic" style="width:70%">
+            <option value="topic">Individual msg.topic</option>
+            <option value="all">All messages</option>
+        </select>
+    </div>
+</script>
+
+<script type="text/html" data-help-name="qsys-trigger">
+    <p>When triggered, can send a message, and then optionally a second message, unless extended or reset. Behaves exactly like the Node-RED core Trigger node, but branded for Q-SYS flows.</p>
+
+    <h3>Inputs</h3>
+    <dl class="message-properties">
+        <dt class="optional">delay <span class="property-type">number</span></dt>
+        <dd>Sets the delay, in milliseconds, to be applied to the message. This option only applies if the node is configured to allow the message to override the configured default delay interval.</dd>
+        <dt class="optional">reset</dt>
+        <dd>If a message is received with this property, any timeout or repeat currently in progress will be cleared and no message triggered.</dd>
+    </dl>
+
+    <h3>Details</h3>
+    <p>This node can be used to create a timeout within a flow. By default, when it receives a message, it sends on a message with a <code>payload</code> of <code>1</code>. It then waits 250ms before sending a second message with a <code>payload</code> of <code>0</code>.</p>
+    <p>The payloads of each message sent can be configured to a variety of values, including the option to not send anything. Setting the initial message to nothing and selecting the option to extend the timer with each received message makes the node act as a watchdog timer, only sending a message if nothing is received within the set interval.</p>
+    <p>If set to a string type, the node supports the mustache template syntax.</p>
+    <p>The delay between sending messages can be overridden by <code>msg.delay</code> if that option is enabled in the node. The value must be provided in milliseconds.</p>
+    <p>If the node receives a message with a <code>reset</code> property, or a <code>payload</code> that matches that configured in the node, any timeout or repeat currently in progress will be cleared and no message triggered.</p>
+    <p>The node can be configured to resend a message at a regular interval until it is reset by a received message.</p>
+    <p>Optionally, the node can be configured to treat messages as if they are separate streams, using a msg property to identify each stream. Default <code>msg.topic</code>.</p>
+    <p>The status indicates the node is currently active. If multiple streams are used the status indicates the number of streams being held.</p>
+</script>
