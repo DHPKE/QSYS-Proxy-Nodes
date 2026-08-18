@@ -1,0 +1,353 @@
+--[[
+  button-bell.qplug
+
+  PKE~Button-Bell - a Q-SYS Designer plugin that plays a looped bell/ring
+  audio file for as long as an input/button is held true (with a
+  configurable minimum play time), adds reverb, and lets each theater pick
+  from 5 built-in default sounds or supply their own custom audio file.
+
+  IMPORTANT - Q-SYS plugin architecture note:
+  Third-party Lua plugins are CONTROL-ONLY - they cannot generate or process
+  audio themselves. Actual playback/looping is done by a native Q-SYS
+  "Audio File Player" component, and reverb by a native "Reverb" component,
+  both placed in the same design. This plugin drives those two named
+  components via Named Component properties, so all the logic below
+  (trigger edge detection, minimum play time, looping, reverb mix) is fully
+  automatic once wired up - see PLUGIN_README.md for setup.
+
+  Author: DHPKE
+--]]
+
+PluginInfo = {
+  Name = "PKE~Button-Bell",
+  Version = "1.0.0",
+  Id = "qsys.pke.button-bell",
+  Description = "Plays a looped bell/ring sound while an input is true, with minimum play time and reverb. Choose from 5 built-in sounds or a custom file.",
+  ShowDebug = true,
+}
+
+local DEBUG_CHOICES = { "None", "All" }
+
+local DEFAULT_SOUND_CHOICES = {
+  "Default 1 - Classic Bell",
+  "Default 2 - School Bell",
+  "Default 3 - Soft Chime",
+  "Default 4 - Theater Bell",
+  "Default 5 - Buzzer",
+  "Custom",
+}
+
+-- Maps the friendly dropdown choice to the actual audio file name expected
+-- in the Audio File Player component's file list / core media library.
+-- Rename these to match whatever you place in the Core's Media Library
+-- (Design Media / Core Media Files) if your file names differ.
+local DEFAULT_SOUND_FILES = {
+  ["Default 1 - Classic Bell"] = "PKE_Bell_Classic.wav",
+  ["Default 2 - School Bell"] = "PKE_Bell_School.wav",
+  ["Default 3 - Soft Chime"] = "PKE_Bell_Chime.wav",
+  ["Default 4 - Theater Bell"] = "PKE_Bell_Theater.wav",
+  ["Default 5 - Buzzer"] = "PKE_Bell_Buzzer.wav",
+}
+
+function GetColor(props)
+  return { 178, 34, 34 } -- firebrick
+end
+
+function GetPrettyName(props)
+  return "PKE~Button-Bell"
+end
+
+function GetProperties()
+  return {
+    { Name = "Sound Selection", Type = "enum", Choices = DEFAULT_SOUND_CHOICES, Value = "Default 1 - Classic Bell" },
+    { Name = "Custom File Name", Type = "string", Value = "" },
+    { Name = "Minimum Play Time (ms)", Type = "integer", Min = 0, Max = 600000, Value = 1000 },
+    { Name = "Reverb Mix Default (%)", Type = "integer", Min = 0, Max = 100, Value = 20 },
+    { Name = "Audio File Player Component", Type = "component", ComponentType = "audio_file_player", Value = "" },
+    { Name = "Reverb Component", Type = "component", ComponentType = "reverb", Value = "" },
+    { Name = "Debug Print", Type = "enum", Choices = DEBUG_CHOICES, Value = "None" },
+  }
+end
+
+function RectifyProperties(props)
+  props["Custom File Name"].IsHidden = (props["Sound Selection"].Value ~= "Custom")
+  return props
+end
+
+function GetControls(props)
+  return {
+    { Name = "input", ControlType = "Button", ButtonType = "Toggle", UserPin = true, PinStyle = "Input" },
+    { Name = "active", ControlType = "Indicator", IndicatorType = "Led", UserPin = true, PinStyle = "Output" },
+    { Name = "status_text", ControlType = "Text", UserPin = true, PinStyle = "Output" },
+    { Name = "min_playtime_ms", ControlType = "Text", UserPin = true, PinStyle = "Input" },
+    { Name = "reverb_mix", ControlType = "Knob", ControlUnit = "Percent", Min = 0, Max = 100, UserPin = true, PinStyle = "Input" },
+    { Name = "sound_select", ControlType = "Text", UserPin = true, PinStyle = "Input" },
+    { Name = "custom_file_name", ControlType = "Text", UserPin = true, PinStyle = "Input" },
+    { Name = "stop_now", ControlType = "Button", ButtonType = "Trigger", UserPin = true, PinStyle = "Input" },
+  }
+end
+
+function GetControlLayout(props)
+  local layout = {}
+  local graphics = {}
+  local yPos = 0
+  local pageWidth = 260
+
+  table.insert(graphics, {
+    Type = "GroupBox",
+    Text = "PKE~Button-Bell",
+    Fill = { 102, 102, 102 },
+    CornerRadius = 8,
+    StrokeWidth = 2,
+    Position = { 0, yPos },
+    Size = { pageWidth, 200 },
+  })
+  yPos = yPos + 8
+
+  layout["status_text"] = {
+    PrettyName = "Status~Status",
+    Style = "Text",
+    Color = { 255, 255, 255 },
+    Position = { 10, yPos },
+    Size = { 180, 16 },
+  }
+  layout["active"] = {
+    PrettyName = "Status~Active",
+    Style = "Indicator",
+    Position = { 200, yPos },
+    Size = { 16, 16 },
+  }
+  yPos = yPos + 24
+
+  layout["input"] = {
+    PrettyName = "Control~Input / Button",
+    Style = "Button",
+    ButtonStyle = "Toggle",
+    Text = "RING",
+    Position = { 10, yPos },
+    Size = { 110, 24 },
+  }
+  layout["stop_now"] = {
+    PrettyName = "Control~Force Stop",
+    Style = "Button",
+    ButtonStyle = "Trigger",
+    Text = "STOP",
+    Position = { 130, yPos },
+    Size = { 110, 24 },
+  }
+  yPos = yPos + 32
+
+  layout["sound_select"] = {
+    PrettyName = "Sound~Sound Selection",
+    Style = "Textbox",
+    Position = { 10, yPos },
+    Size = { 240, 16 },
+  }
+  yPos = yPos + 24
+
+  layout["custom_file_name"] = {
+    PrettyName = "Sound~Custom File Name",
+    Style = "Textbox",
+    Position = { 10, yPos },
+    Size = { 240, 16 },
+  }
+  yPos = yPos + 24
+
+  layout["min_playtime_ms"] = {
+    PrettyName = "Timing~Minimum Play Time (ms)",
+    Style = "Textbox",
+    Position = { 10, yPos },
+    Size = { 100, 16 },
+  }
+  yPos = yPos + 24
+
+  layout["reverb_mix"] = {
+    PrettyName = "Sound~Reverb Mix (%)",
+    Style = "Knob",
+    Position = { 10, yPos },
+    Size = { 60, 20 },
+  }
+
+  return layout, graphics
+end
+
+-- =========================================================================
+-- Runtime
+-- =========================================================================
+if Controls then
+  local debugMode = Properties["Debug Print"].Value
+
+  local function DebugPrint(msg)
+    if debugMode == "All" then
+      print("[PKE~Button-Bell] " .. tostring(msg))
+    end
+  end
+
+  -- Resolve the native components this plugin drives. These must exist in
+  -- the design and be selected via the "Audio File Player Component" /
+  -- "Reverb Component" properties (Named Component pickers).
+  local playerCompName = Properties["Audio File Player Component"].Value
+  local reverbCompName = Properties["Reverb Component"].Value
+
+  local player = (playerCompName ~= "" and playerCompName ~= nil) and Component.New(playerCompName) or nil
+  local reverb = (reverbCompName ~= "" and reverbCompName ~= nil) and Component.New(reverbCompName) or nil
+
+  if not player then
+    DebugPrint("WARNING: No Audio File Player component selected - playback will not function.")
+  end
+  if not reverb then
+    DebugPrint("WARNING: No Reverb component selected - reverb mix will not function.")
+  end
+
+  -- ------------------------------------------------------------------
+  -- State
+  -- ------------------------------------------------------------------
+  local isPlaying = false
+  local minTimeElapsed = true
+  local releaseRequested = false
+  local minTimer = Timer.New()
+
+  -- Seed default UI values from properties on load.
+  Controls.min_playtime_ms.String = tostring(Properties["Minimum Play Time (ms)"].Value)
+  Controls.reverb_mix.Value = Properties["Reverb Mix Default (%)"].Value
+  Controls.sound_select.String = Properties["Sound Selection"].Value
+  Controls.custom_file_name.String = Properties["Custom File Name"].Value
+
+  local function currentFileName()
+    local sel = Controls.sound_select.String
+    if sel == "Custom" or sel == "" then
+      return Controls.custom_file_name.String
+    end
+    local mapped = DEFAULT_SOUND_FILES[sel]
+    return mapped or sel
+  end
+
+  local function currentMinPlayMs()
+    local v = tonumber(Controls.min_playtime_ms.String)
+    if v == nil or v < 0 then
+      return 0
+    end
+    return v
+  end
+
+  local function updateStatus(text)
+    Controls.status_text.String = text
+    Controls.active.Boolean = isPlaying
+  end
+
+  local function applyReverbMix()
+    if not reverb then return end
+    local mixPct = Controls.reverb_mix.Value or 0
+    -- Most Q-SYS Reverb components expose a "mix" or "wet" style control
+    -- (0-1 or 0-100 depending on the component). We try the common name
+    -- "mix" first, scaled 0-1, then fall back to a direct percent control
+    -- named "wet_dry" if present.
+    local ok = pcall(function()
+      reverb["mix"].Value = mixPct / 100
+    end)
+    if not ok then
+      pcall(function()
+        reverb["wet_dry"].Value = mixPct
+      end)
+    end
+  end
+
+  local function startPlayback()
+    if not player then
+      DebugPrint("Cannot start playback - no Audio File Player component configured.")
+      return
+    end
+
+    local file = currentFileName()
+    if file == nil or file == "" then
+      DebugPrint("Cannot start playback - no file name resolved.")
+      return
+    end
+
+    DebugPrint("Starting playback: " .. file)
+
+    -- Configure the native Audio File Player: select file, force loop on
+    -- (a bell can ring 15s+ so the source clip must repeat), then play.
+    pcall(function() player["file.name"].String = file end)
+    pcall(function() player["loop"].Boolean = true end)
+    pcall(function() player["play"].Boolean = true end)
+
+    isPlaying = true
+    minTimeElapsed = false
+    releaseRequested = false
+
+    applyReverbMix()
+    updateStatus("playing: " .. file)
+
+    local minMs = currentMinPlayMs()
+    minTimer:Stop()
+    if minMs <= 0 then
+      minTimeElapsed = true
+    else
+      minTimer.EventHandler = function()
+        minTimeElapsed = true
+        if releaseRequested then
+          -- Input was released before the minimum time was up; now that
+          -- the minimum has elapsed, actually stop playback.
+          stopPlayback()
+        end
+      end
+      minTimer:Start(minMs / 1000)
+    end
+  end
+
+  function stopPlayback()
+    if not isPlaying then return end
+
+    if not minTimeElapsed then
+      -- Still inside the minimum play window - defer the stop until the
+      -- minimum timer fires (handled in startPlayback's EventHandler).
+      releaseRequested = true
+      updateStatus("finishing minimum play time...")
+      return
+    end
+
+    DebugPrint("Stopping playback")
+
+    if player then
+      pcall(function() player["play"].Boolean = false end)
+    end
+
+    isPlaying = false
+    releaseRequested = false
+    minTimer:Stop()
+    updateStatus("idle")
+  end
+
+  -- ------------------------------------------------------------------
+  -- Event wiring
+  -- ------------------------------------------------------------------
+  Controls.input.EventHandler = function(ctrl)
+    if ctrl.Boolean then
+      if not isPlaying then
+        startPlayback()
+      end
+    else
+      stopPlayback()
+    end
+  end
+
+  Controls.stop_now.EventHandler = function()
+    -- Force-stop overrides the minimum play time guard entirely.
+    minTimeElapsed = true
+    releaseRequested = false
+    stopPlayback()
+  end
+
+  Controls.reverb_mix.EventHandler = function()
+    applyReverbMix()
+  end
+
+  Controls.sound_select.EventHandler = function()
+    DebugPrint("Sound selection changed to: " .. tostring(Controls.sound_select.String))
+  end
+
+  updateStatus("idle")
+  applyReverbMix()
+  DebugPrint("PKE~Button-Bell initialized")
+end
