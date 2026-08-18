@@ -1,0 +1,383 @@
+--[[
+  trigger.qplug
+
+  PKE~Trigger - a Q-SYS Designer plugin that replicates the Node-RED core
+  "Trigger" node: https://flowfuse.com/node-red/core-nodes/trigger/
+
+  When triggered, sends "Send 1" immediately, then optionally waits a
+  configurable delay before sending "Send 2" - unless the delay is
+  extended by a new trigger, the node is reset, or it is configured to
+  repeat/wait-to-be-reset instead.
+
+  Author: DHPKE
+--]]
+
+PluginInfo = {
+  Name = "PKE~Trigger",
+  Version = "1.0.0",
+  Id = "qsys.pke.trigger",
+  Description = "Send a value, then optionally a second value after a delay - unless extended or reset. Mirrors the Node-RED core Trigger node.",
+  ShowDebug = true,
+}
+
+local DEBUG_CHOICES = { "None", "All" }
+
+local SEND_TYPE_CHOICES = { "String", "Number", "Boolean", "Nothing" }
+local UNITS_CHOICES = { "milliseconds", "seconds", "minutes", "hours" }
+local HANDLING_CHOICES = { "All Messages", "By Topic" }
+
+local UNIT_MULTIPLIER = {
+  ["milliseconds"] = 1,
+  ["seconds"] = 1000,
+  ["minutes"] = 60000,
+  ["hours"] = 3600000,
+}
+
+function GetColor(props)
+  return { 233, 150, 122 } -- darksalmon
+end
+
+function GetPrettyName(props)
+  return "PKE~Trigger"
+end
+
+function GetProperties()
+  return {
+    { Name = "Send 1 Type", Type = "enum", Choices = SEND_TYPE_CHOICES, Value = "String" },
+    { Name = "Send 1 Value", Type = "string", Value = "1" },
+    { Name = "Second Output", Type = "boolean", Value = false },
+    { Name = "Duration", Type = "integer", Min = -2147483648, Max = 2147483647, Value = 250 },
+    { Name = "Duration Units", Type = "enum", Choices = UNITS_CHOICES, Value = "milliseconds" },
+    { Name = "Send 2 Type", Type = "enum", Choices = SEND_TYPE_CHOICES, Value = "String" },
+    { Name = "Send 2 Value", Type = "string", Value = "0" },
+    { Name = "Extend Delay On New Trigger", Type = "boolean", Value = false },
+    { Name = "Allow Delay Override", Type = "boolean", Value = false },
+    { Name = "Use Reset Value", Type = "boolean", Value = false },
+    { Name = "Reset Value", Type = "string", Value = "" },
+    { Name = "Handling", Type = "enum", Choices = HANDLING_CHOICES, Value = "All Messages" },
+    { Name = "Debug Print", Type = "enum", Choices = DEBUG_CHOICES, Value = "None" },
+  }
+end
+
+function RectifyProperties(props)
+  props["Send 1 Value"].IsHidden = (props["Send 1 Type"].Value == "Nothing")
+  props["Send 2 Value"].IsHidden = (props["Send 2 Type"].Value == "Nothing")
+  props["Reset Value"].IsHidden = not props["Use Reset Value"].Value
+  return props
+end
+
+function GetControls(props)
+  local ctrls = {
+    { Name = "trigger", ControlType = "Button", ButtonType = "Trigger", UserPin = true, PinStyle = "Input" },
+    { Name = "reset", ControlType = "Button", ButtonType = "Trigger", UserPin = true, PinStyle = "Input" },
+    { Name = "topic", ControlType = "Text", UserPin = true, PinStyle = "Input" },
+    { Name = "delay_override_ms", ControlType = "Text", UserPin = true, PinStyle = "Input" },
+    { Name = "output_1", ControlType = "Text", UserPin = true, PinStyle = "Output" },
+    { Name = "active", ControlType = "Indicator", IndicatorType = "Led", UserPin = true, PinStyle = "Output" },
+    { Name = "status_text", ControlType = "Text", UserPin = true, PinStyle = "Output" },
+  }
+
+  table.insert(ctrls, {
+    Name = "output_2",
+    ControlType = "Text",
+    UserPin = props["Second Output"].Value,
+    PinStyle = "Output",
+  })
+
+  return ctrls
+end
+
+function GetControlLayout(props)
+  local layout = {}
+  local graphics = {}
+  local yPos = 0
+  local pageWidth = 260
+
+  table.insert(graphics, {
+    Type = "GroupBox",
+    Text = "PKE~Trigger",
+    Fill = { 102, 102, 102 },
+    CornerRadius = 8,
+    StrokeWidth = 2,
+    Position = { 0, yPos },
+    Size = { pageWidth, 160 },
+  })
+  yPos = yPos + 8
+
+  layout["status_text"] = {
+    PrettyName = "Status~Status",
+    Style = "Text",
+    Color = { 255, 255, 255 },
+    Position = { 10, yPos },
+    Size = { 180, 16 },
+  }
+  layout["active"] = {
+    PrettyName = "Status~Active",
+    Style = "Indicator",
+    Position = { 200, yPos },
+    Size = { 16, 16 },
+  }
+  yPos = yPos + 24
+
+  layout["trigger"] = {
+    PrettyName = "Control~Trigger",
+    Style = "Button",
+    ButtonStyle = "Trigger",
+    Text = "TRIGGER",
+    Position = { 10, yPos },
+    Size = { 110, 24 },
+  }
+  layout["reset"] = {
+    PrettyName = "Control~Reset",
+    Style = "Button",
+    ButtonStyle = "Trigger",
+    Text = "RESET",
+    Position = { 130, yPos },
+    Size = { 110, 24 },
+  }
+  yPos = yPos + 32
+
+  layout["topic"] = {
+    PrettyName = "Control~Topic",
+    Style = "Textbox",
+    Position = { 10, yPos },
+    Size = { 240, 16 },
+  }
+  yPos = yPos + 24
+
+  layout["delay_override_ms"] = {
+    PrettyName = "Control~Delay Override (ms)",
+    Style = "Textbox",
+    Position = { 10, yPos },
+    Size = { 100, 16 },
+  }
+  yPos = yPos + 24
+
+  layout["output_1"] = {
+    PrettyName = "Output~Output 1 (Send 1)",
+    Style = "Text",
+    Position = { 10, yPos },
+    Size = { 240, 16 },
+  }
+  yPos = yPos + 20
+
+  if props["Second Output"].Value then
+    layout["output_2"] = {
+      PrettyName = "Output~Output 2 (Send 2)",
+      Style = "Text",
+      Position = { 10, yPos },
+      Size = { 240, 16 },
+    }
+  end
+
+  return layout, graphics
+end
+
+-- =========================================================================
+-- Runtime
+-- =========================================================================
+if Controls then
+  local debugMode = Properties["Debug Print"].Value
+
+  local function DebugPrint(msg)
+    if debugMode == "All" then
+      print("[PKE~Trigger] " .. tostring(msg))
+    end
+  end
+
+  -- Cached property values (recomputed via RectifyProperties/property change
+  -- events do not re-run this block, so these reflect load-time properties;
+  -- Duration/units etc. can additionally be overridden live via pins).
+  local send1Type = Properties["Send 1 Type"].Value
+  local send1Value = Properties["Send 1 Value"].Value
+  local send2Type = Properties["Send 2 Type"].Value
+  local send2Value = Properties["Send 2 Value"].Value
+  local secondOutput = Properties["Second Output"].Value
+  local extendDelay = Properties["Extend Delay On New Trigger"].Value
+  local allowOverride = Properties["Allow Delay Override"].Value
+  local useResetValue = Properties["Use Reset Value"].Value
+  local resetValue = Properties["Reset Value"].Value
+  local byTopic = (Properties["Handling"].Value == "By Topic")
+
+  local baseDurationMs = Properties["Duration"].Value * UNIT_MULTIPLIER[Properties["Duration Units"].Value]
+
+  -- Per-topic state when Handling = "By Topic"; otherwise a single "_all_" entry.
+  -- Each entry: { timer = Timer, mode = "delay"|"blocked"|"repeat" }
+  local streams = {}
+
+  local function currentTopic()
+    if byTopic then
+      local t = Controls.topic.String
+      if t == nil or t == "" then
+        return "_none_"
+      end
+      return t
+    end
+    return "_all_"
+  end
+
+  local function updateStatus()
+    local count = 0
+    for _ in pairs(streams) do count = count + 1 end
+
+    if count == 0 then
+      Controls.active.Boolean = false
+      Controls.status_text.String = "idle"
+    else
+      Controls.active.Boolean = true
+      if byTopic and count > 1 then
+        Controls.status_text.String = count .. " topics active"
+      else
+        Controls.status_text.String = "active"
+      end
+    end
+  end
+
+  local function coerceValue(sendType, rawValue)
+    if sendType == "Nothing" then
+      return nil, false
+    elseif sendType == "Number" then
+      return tostring(tonumber(rawValue) or 0), true
+    elseif sendType == "Boolean" then
+      local v = tostring(rawValue):lower()
+      if v == "true" or v == "1" then
+        return "1", true
+      else
+        return "0", true
+      end
+    else -- String
+      return tostring(rawValue), true
+    end
+  end
+
+  local function sendOutput(outputNum, sendType, rawValue)
+    local value, shouldSend = coerceValue(sendType, rawValue)
+    if not shouldSend then
+      return
+    end
+    if outputNum == 2 and secondOutput and Controls.output_2 then
+      Controls.output_2.String = value
+    else
+      Controls.output_1.String = value
+    end
+    DebugPrint(string.format("Send %d -> %s", outputNum, tostring(value)))
+  end
+
+  local function clearStream(topic)
+    local s = streams[topic]
+    if s then
+      if s.timer then
+        s.timer:Stop()
+      end
+      streams[topic] = nil
+    end
+    updateStatus()
+  end
+
+  local function clearAllStreams()
+    for topic in pairs(streams) do
+      clearStream(topic)
+    end
+    updateStatus()
+  end
+
+  local function doReset(topic)
+    if topic then
+      clearStream(topic)
+    else
+      clearAllStreams()
+    end
+    DebugPrint("Reset" .. (topic and (" (topic=" .. topic .. ")") or " (all)"))
+  end
+
+  local function startCycle(topic, durationMs)
+    local s = streams[topic] or {}
+    streams[topic] = s
+
+    if durationMs < 0 then
+      -- Repeat mode: resend "Send 1" every |duration| ms until reset.
+      s.mode = "repeat"
+      if s.timer then s.timer:Stop() end
+      s.timer = Timer.New()
+      s.timer.EventHandler = function()
+        sendOutput(1, send1Type, send1Value)
+      end
+      s.timer:Start(math.abs(durationMs) / 1000)
+    elseif durationMs == 0 then
+      -- Wait to be reset: block until Reset is triggered.
+      s.mode = "blocked"
+      s.timer = nil
+    else
+      s.mode = "delay"
+      if s.timer then s.timer:Stop() end
+      s.timer = Timer.New()
+      s.timer.EventHandler = function()
+        sendOutput(2, send2Type, send2Value)
+        clearStream(topic)
+      end
+      s.timer:Start(durationMs / 1000)
+    end
+
+    updateStatus()
+  end
+
+  local function doTrigger()
+    local topic = currentTopic()
+
+    -- Reset-by-value check (mirrors Node-RED's "Reset if" matching on payload)
+    if useResetValue and resetValue ~= "" and Controls.topic.String == resetValue then
+      doReset(byTopic and topic or nil)
+      return
+    end
+
+    local existing = streams[topic]
+
+    if existing then
+      if existing.mode == "blocked" then
+        -- Waiting to be reset: ignore new triggers entirely.
+        DebugPrint("Blocked (waiting for reset), ignoring trigger for topic=" .. topic)
+        return
+      end
+      if existing.mode == "repeat" then
+        -- Already repeating; ignore extra triggers.
+        return
+      end
+      if existing.mode == "delay" and not extendDelay then
+        -- Blocked - ignore while a cycle is already in progress.
+        DebugPrint("Blocked (already active), ignoring trigger for topic=" .. topic)
+        return
+      end
+      if existing.mode == "delay" and extendDelay and existing.timer then
+        existing.timer:Stop()
+      end
+    end
+
+    sendOutput(1, send1Type, send1Value)
+
+    local durationMs = baseDurationMs
+    if allowOverride then
+      local overrideStr = Controls.delay_override_ms.String
+      local overrideVal = tonumber(overrideStr)
+      if overrideVal ~= nil then
+        durationMs = overrideVal
+      end
+    end
+
+    startCycle(topic, durationMs)
+  end
+
+  Controls.trigger.EventHandler = function()
+    doTrigger()
+  end
+
+  Controls.reset.EventHandler = function()
+    if byTopic then
+      doReset(currentTopic())
+    else
+      doReset(nil)
+    end
+  end
+
+  updateStatus()
+  DebugPrint("PKE~Trigger initialized")
+end
