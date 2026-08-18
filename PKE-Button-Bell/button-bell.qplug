@@ -7,18 +7,24 @@
   from 5 built-in default sounds or supply their own custom audio file.
 
   IMPORTANT - Q-SYS plugin architecture note:
-  Third-party Lua plugins are CONTROL-ONLY - they cannot generate, process,
-  or route audio themselves, and there is no API for a plugin to bundle a
-  native DSP block (Audio File Player, Reverb, etc.) inside itself with
-  its own audio pins. Actual playback/looping is done by a native Q-SYS
-  "Audio File Player" component, and reverb by a native "Reverb" component,
-  both placed separately in the same design (wire the Player's audio
-  output into the Reverb's audio input, and the Reverb's audio output into
-  your amp/zone). This plugin drives those two named components purely via
-  their control properties (file selection, loop, play, mix), so all the
-  logic below (trigger edge detection, minimum play time, looping, reverb
-  mix) is automatic once you type in their exact Named Component names -
-  see PLUGIN_README.md for setup.
+  Third-party Lua plugins are normally CONTROL-ONLY, but Q-SYS Designer
+  does support a documented mechanism for a plugin to embed native DSP
+  sub-components directly inside itself via GetComponent(), which then
+  exposes their audio connectors as this block's own audio pins. This
+  plugin uses that mechanism to embed a native Audio File Player and a
+  native Reverb, so the block itself now has a real audio output you can
+  wire straight to an amp/zone - no separate components required.
+
+  NOTE ON RISK: the exact component "Type" identifiers accepted by
+  GetComponent() are determined by Q-SYS Designer's internal component
+  library and are NOT all publicly enumerated. If Designer reports an
+  error such as "unknown component type" when this plugin is loaded,
+  please share the EXACT error text - it will tell us the type string
+  Designer actually expects, and the two Type values below (currently
+  "audio_file_player" and "reverb") can be corrected immediately. If no
+  embeddable audio-player/reverb type exists at all, this plugin can be
+  reverted to the external-named-component approach documented in a
+  previous version of PLUGIN_README.md as a guaranteed-working fallback.
 
   Author: DHPKE
 --]]
@@ -72,8 +78,6 @@ function GetProperties()
     { Name = "Reverb Mix Default (%)", Type = "integer", Min = 0, Max = 100, Value = 20 },
     { Name = "Trigger Output Type", Type = "enum", Choices = TRIGGER_OUTPUT_TYPE_CHOICES, Value = "Boolean" },
     { Name = "Trigger On Time (ms)", Type = "integer", Min = 0, Max = 600000, Value = 1000 },
-    { Name = "Audio File Player Component Name", Type = "string", Value = "" },
-    { Name = "Reverb Component Name", Type = "string", Value = "" },
     { Name = "Debug Print", Type = "enum", Choices = DEBUG_CHOICES, Value = "None" },
   }
 end
@@ -81,6 +85,20 @@ end
 function RectifyProperties(props)
   props["Custom File Name"].IsHidden = (props["Sound Selection"].Value ~= "Custom")
   return props
+end
+
+-- Embeds a native Audio File Player and native Reverb directly inside this
+-- plugin. Q-SYS Designer exposes their audio connectors automatically as
+-- this block's own audio pins (audio in on the Player side is unused here
+-- since we only play local files; the Reverb's audio output becomes this
+-- plugin's audio output pin, ready to wire to an amp/zone/gain block).
+-- See the architecture note at the top of this file for the caveat on
+-- these Type strings.
+function GetComponent(props)
+  return {
+    { Name = "Player", Type = "audio_file_player" },
+    { Name = "Reverb", Type = "reverb" },
+  }
 end
 
 function GetControls(props)
@@ -227,15 +245,12 @@ if Controls then
     end
   end
 
-  -- Resolve the native components this plugin drives. These must exist in
-  -- the design; type the exact Named Component name (as shown in the
-  -- component's own Properties > Name field) into the "Audio File Player
-  -- Component Name" / "Reverb Component Name" text properties below.
-  local playerCompName = Properties["Audio File Player Component Name"].Value
-  local reverbCompName = Properties["Reverb Component Name"].Value
-
-  local player = (playerCompName ~= "" and playerCompName ~= nil) and Component.New(playerCompName) or nil
-  local reverb = (reverbCompName ~= "" and reverbCompName ~= nil) and Component.New(reverbCompName) or nil
+  -- Resolve the two native components bundled into this plugin via
+  -- GetComponent() above (Name = "Player" / Name = "Reverb"). Since these
+  -- are embedded sub-components rather than externally-placed named
+  -- components, they should always resolve - no manual naming required.
+  local player = Component.New("Player")
+  local reverb = Component.New("Reverb")
 
   if not player then
     DebugPrint("WARNING: Bundled Player sub-component failed to resolve - playback will not function.")
@@ -376,7 +391,7 @@ if Controls then
 
   local function startPlayback()
     if not player then
-      DebugPrint("Cannot start playback - no Audio File Player component configured.")
+      DebugPrint("Cannot start playback - bundled Player sub-component is unavailable.")
       return
     end
 

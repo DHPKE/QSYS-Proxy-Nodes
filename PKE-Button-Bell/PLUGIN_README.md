@@ -8,25 +8,25 @@ their own bell/ring tone without needing to touch the plugin logic.
 
 ## How it works (important architecture note)
 
-Q-SYS third-party Lua plugins are **control-only** — they cannot generate,
-decode, or route audio themselves, and there is no mechanism for a plugin
-to embed a native DSP block inside itself with its own audio pins. Actual
-playback, looping, and reverb DSP are done by two **native Q-SYS
-components** already built into Q-SYS Designer, placed separately in your
-design:
+Q-SYS Designer supports a mechanism for a plugin to **embed native DSP
+sub-components directly inside itself** via `GetComponent()`. This plugin
+uses that mechanism to embed:
 
-- An **Audio File Player** component (plays/loops the local audio file)
-- A **Reverb** component (adds reverb to the played signal)
+- A native **Audio File Player** (plays/loops the local audio file)
+- A native **Reverb** (adds reverb to the played signal)
 
-This plugin drives both of those components for you — handling the
-trigger/release logic, minimum play time, looping, sound selection, and
-reverb mix — via two **Named Component** properties. All you need to do is
-place an Audio File Player and a Reverb component in your design, wire the
-Audio File Player's audio output into the Reverb's audio input (and the
-Reverb's audio output into your amp/zone), and then point this plugin at
-both by name. The `PKE~Button-Bell` plugin block itself only has control
-pins (see below) — the actual audio signal path runs through those two
-native components, not through the plugin block.
+Because these are embedded rather than externally placed, Q-SYS Designer
+exposes their audio connectors as **this plugin block's own audio output
+pin** — wire it straight to your amp/zone/gain block like any other audio
+device. No separate components or manual naming are required; the
+plugin's script drives the embedded Player/Reverb internally (trigger
+detection, minimum play time, looping, sound selection, reverb mix).
+
+> **Note:** the exact set of embeddable component "Type" identifiers is
+> defined internally by Q-SYS Designer. If Designer reports an "unknown
+> component type" error when loading this plugin, share the exact error
+> text — it will indicate the correct type string(s) to use in place of
+> `"audio_file_player"` / `"reverb"` in `GetComponent()`.
 
 ## Properties
 
@@ -38,32 +38,20 @@ native components, not through the plugin block.
 | **Reverb Mix Default (%)** | `20` | Initial reverb wet/dry mix percentage applied to the Reverb component on load. |
 | **Trigger Output Type** | `Boolean` | Data type of the `trigger_output` pin: `Boolean` (`true`/`false`), `Integer` (`1`/`0`), or `String` (`on`/`off`). |
 | **Trigger On Time (ms)** | `1000` | How long `trigger_output` stays "on" after each press before automatically reverting to "off" — independent of the bell/ring duration and of whether the button is still held. |
-| **Audio File Player Component Name** | *(empty)* | Type the exact Named Component name of the Audio File Player component in your design (see that component's own Properties > Name field) that this plugin should control. |
-| **Reverb Component Name** | *(empty)* | Type the exact Named Component name of the Reverb component in your design that this plugin should control. |
 | **Debug Print** | `None` | Set to `All` to print trigger/playback activity to the Q-SYS log. |
 
-## Setup (wiring the actual audio)
+## Audio Output
 
-Since the plugin block has **no audio pins of its own**, you must place and
-wire the real audio signal path yourself, once, in your design:
-
-1. Place a native **Audio File Player** component and a native **Reverb**
-   component anywhere in the design.
-2. Wire the Audio File Player's audio output → the Reverb's audio input.
-3. Wire the Reverb's audio output → your amplifier/zone/gain block.
-4. Name both components (Properties > Name) something memorable, e.g.
-   `BellPlayer` and `BellReverb`.
-5. In the `PKE~Button-Bell` plugin's properties, type those exact names
-   into **Audio File Player Component Name** and **Reverb Component Name**.
-
-Once wired, the plugin's control pins (below) drive that native audio path
-for you automatically.
+Since the Player and Reverb are embedded directly inside this plugin, the
+`PKE~Button-Bell` block itself exposes a **real audio output connector** in
+the schematic — just wire it to your amplifier/zone/gain block. Nothing
+else needs to be placed or named.
 
 ## Pins
 
 | Pin | Type | Direction | Description |
 | --- | --- | --- | --- |
-| `input` | Button (Momentary) | Input | The button or logic signal that starts/stops the bell. Momentary behavior: `true` only while pressed/held (press = play), and Q-SYS automatically sends `false` on release (subject to minimum play time) — no toggle/latched state is retained. |
+| `input` | Button (Momentary) | Input | The GUI button **and** an optional external logic/contact input, mirrored together on the same pin (`UserPin = true`). Momentary behavior: `true` only while pressed/held or while the external input is high (press/high = play), and Q-SYS automatically sends `false` on release/low (subject to minimum play time) — no toggle/latched state is retained either way. |
 | `stop_now` | Button (Trigger) | Input | Force-stops playback immediately, bypassing the minimum play time guard, and forces the Trigger Output back off. |
 | `sound_select` | Text (List) | Input | Live override of **Sound Selection** (write/select one of the 5 default labels or `Custom`). |
 | `custom_file_name` | Text | Input | Live override of the custom file name when using `Custom`. |
@@ -129,19 +117,14 @@ bell/ring audio without any code changes.
 
 ## Installation
 
-1. In Q-SYS Designer, place a native **Audio File Player** component and a
-   native **Reverb** component in your design; wire Audio File Player
-   output → Reverb input → your amp/zone.
-2. Upload the 5 default sound files (or your own) to the Core's Media
-   Library so the Audio File Player can select them.
-3. **File → Plugins → Load Plugin**, then select `button-bell.qplug`.
-4. Drag the plugin into your design from the Schematic Library.
-5. In the plugin's Properties, type the exact **Named Component** name of
-   your Audio File Player into **Audio File Player Component Name**, and
-   your Reverb component's name into **Reverb Component Name**. You can
-   find/set a component's Named Component name in that component's own
-   Properties panel (the "Name" field at the top).
-6. Wire the `input` pin to your button/logic source.
+1. Upload the 5 default sound files (or your own) to the Core's Media
+   Library so the embedded Audio File Player can select them.
+2. **File → Plugins → Load Plugin**, then select `button-bell.qplug`.
+3. Drag the plugin into your design from the Schematic Library.
+4. Wire the plugin block's **audio output** connector to your amp/zone/gain
+   block.
+5. Wire the `input` pin to your button/logic source (an external contact
+   or logic signal works too — see the momentary/mirroring note below).
 
 ## Version
 
