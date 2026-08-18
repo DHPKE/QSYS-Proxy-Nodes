@@ -30,6 +30,8 @@ into your amp/zone), and then point this plugin at both by name.
 | **Custom File Name** | *(empty)* | File name (as it appears in the Audio File Player's file list / Core media library) to play when **Sound Selection** = `Custom`. Only shown when Custom is selected. |
 | **Minimum Play Time (ms)** | `1000` | The bell/ring will play for at least this long, even if the button/input is released sooner. `0` disables the minimum (stops immediately on release). |
 | **Reverb Mix Default (%)** | `20` | Initial reverb wet/dry mix percentage applied to the Reverb component on load. |
+| **Trigger Output Type** | `Boolean` | Data type of the `trigger_output` pin: `Boolean` (`true`/`false`), `Integer` (`1`/`0`), or `String` (`on`/`off`). |
+| **Trigger On Time (ms)** | `1000` | How long `trigger_output` stays "on" after each press before automatically reverting to "off" — independent of the bell/ring duration and of whether the button is still held. |
 | **Audio File Player Component Name** | *(empty)* | Type the exact Named Component name of the Audio File Player component in your design (see that component's own Properties > Name field) that this plugin should control. |
 | **Reverb Component Name** | *(empty)* | Type the exact Named Component name of the Reverb component in your design that this plugin should control. |
 | **Debug Print** | `None` | Set to `All` to print trigger/playback activity to the Q-SYS log. |
@@ -38,31 +40,45 @@ into your amp/zone), and then point this plugin at both by name.
 
 | Pin | Type | Direction | Description |
 | --- | --- | --- | --- |
-| `input` | Button (Toggle) | Input | The button or logic signal that starts/stops the bell. `true`/`1` = play, `false`/`0` = release (subject to minimum play time). |
-| `stop_now` | Button (Trigger) | Input | Force-stops playback immediately, bypassing the minimum play time guard. |
-| `sound_select` | Text | Input | Live override of **Sound Selection** (write one of the 5 default labels or `Custom`). |
+| `input` | Button (Momentary) | Input | The button or logic signal that starts/stops the bell. Momentary behavior: `true` only while pressed/held (press = play), and Q-SYS automatically sends `false` on release (subject to minimum play time) — no toggle/latched state is retained. |
+| `stop_now` | Button (Trigger) | Input | Force-stops playback immediately, bypassing the minimum play time guard, and forces the Trigger Output back off. |
+| `sound_select` | Text (List) | Input | Live override of **Sound Selection** (write/select one of the 5 default labels or `Custom`). |
 | `custom_file_name` | Text | Input | Live override of the custom file name when using `Custom`. |
 | `min_playtime_ms` | Text | Input | Live override of the minimum play time, in milliseconds. |
 | `reverb_mix` | Knob (0–100%) | Input | Live reverb wet/dry mix control. |
 | `active` | Indicator (LED) | Output | Lit while the bell is playing (including during the "finishing minimum play time" phase). |
 | `status_text` | Text | Output | Human-readable status: `idle`, `playing: <file>`, or `finishing minimum play time...`. |
+| `trigger_output_type` | Text (List) | Input | Live override of **Trigger Output Type** (`Boolean`, `Integer`, or `String`). |
+| `trigger_on_time_ms` | Text | Input | Live override of **Trigger On Time (ms)** — how long `trigger_output` stays "on" after each press. |
+| `trigger_output` | Text | Output | The typed trigger output value. Reflects the "on" representation (`true` / `1` / `on`) immediately on press, then automatically reverts to the "off" representation (`false` / `0` / `off`) after **Trigger On Time (ms)**, independent of the bell/ring state or how long the button is held. |
 
 ## Behavior
 
-1. **Input goes true** → the plugin selects the configured sound file on the
-   Audio File Player, forces **Loop = on** (since a bell can ring 15+
-   seconds — far longer than most short bell/chime source clips — the
-   file must repeat seamlessly), and starts playback. The minimum play
-   timer starts counting.
-2. **Input goes false before the minimum time elapses** → the release is
-   remembered, but playback continues (still looping) until the minimum
-   play timer fires, at which point it stops automatically.
-3. **Input goes false after the minimum time has already elapsed** →
-   playback stops immediately.
-4. **Force Stop (`stop_now`)** → stops immediately regardless of minimum
-   play time, for emergency/manual override.
+1. **Input goes true (press)** → the plugin selects the configured sound
+   file on the Audio File Player, forces **Loop = on** (since a bell can
+   ring 15+ seconds — far longer than most short bell/chime source clips —
+   the file must repeat seamlessly), and starts playback. The minimum play
+   timer starts counting. At the same time, the **Trigger Output** fires
+   (see item 6 below).
+2. **Input goes false (release) before the minimum time elapses** → the
+   release is remembered, but playback continues (still looping) until
+   the minimum play timer fires, at which point it stops automatically.
+3. **Input goes false (release) after the minimum time has already
+   elapsed** → playback stops immediately.
+4. **Force Stop (`stop_now`)** → stops playback immediately regardless of
+   minimum play time, for emergency/manual override, and also forces the
+   Trigger Output back to its "off" value immediately.
 5. **Reverb Mix** can be adjusted live at any time (including mid-ring) via
    the `reverb_mix` pin/knob.
+6. **Trigger Output** → on every press of `input`, `trigger_output` is
+   immediately set to the "on" representation of the configured
+   **Trigger Output Type** (`true` for Boolean, `1` for Integer, `on` for
+   String), then automatically reverts to the "off" representation
+   (`false` / `0` / `off`) after **Trigger On Time (ms)** elapses. This
+   timing runs completely independently of the bell/ring playback and of
+   how long the `input` button is actually held — it always fires for the
+   configured on-time once triggered (unless `stop_now` forces it off
+   early).
 
 ## Default Sounds
 
